@@ -101,6 +101,19 @@ pub fn create_runtime_from_snapshot(
   )
 }
 
+pub fn create_runtime(
+  inspector: bool,
+  parent: Option<WorkerCloseWatcher>,
+  additional_extensions: Vec<Extension>,
+) -> (JsRuntime, WorkerHostSide) {
+  create_runtime_with_options(
+    inspector,
+    parent,
+    additional_extensions,
+    RuntimeOptions::default(),
+  )
+}
+
 pub struct Snapshot(&'static [u8]);
 
 pub fn create_runtime_from_snapshot_with_options(
@@ -133,6 +146,38 @@ pub fn create_runtime_from_snapshot_with_options(
   runtime.op_state().borrow_mut().put(stats);
   runtime.op_state().borrow_mut().put(worker);
   runtime.op_state().borrow_mut().put(Snapshot(snapshot));
+
+  (runtime, worker_host_side)
+}
+
+pub fn create_runtime_with_options(
+  inspector: bool,
+  parent: Option<WorkerCloseWatcher>,
+  additional_extensions: Vec<Extension>,
+  options: RuntimeOptions,
+) -> (JsRuntime, WorkerHostSide) {
+  let (worker, worker_host_side) = worker_create(parent);
+
+  let mut extensions = vec![extensions::checkin_runtime::init::<()>()];
+  extensions.extend(additional_extensions);
+  let module_loader =
+    Rc::new(ts_module_loader::TypescriptModuleLoader::default());
+  let runtime = JsRuntime::new(RuntimeOptions {
+    extensions,
+    startup_snapshot: None,
+    module_loader: Some(module_loader.clone()),
+    extension_transpiler: Some(Rc::new(|specifier, source| {
+      maybe_transpile_source(specifier, source)
+    })),
+    shared_array_buffer_store: Some(CrossIsolateStore::default()),
+    inspector,
+    import_assertions_support: ImportAssertionsSupport::Warning,
+    ..options
+  });
+
+  let stats = runtime.runtime_activity_stats_factory();
+  runtime.op_state().borrow_mut().put(stats);
+  runtime.op_state().borrow_mut().put(worker);
 
   (runtime, worker_host_side)
 }

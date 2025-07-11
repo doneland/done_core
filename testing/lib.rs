@@ -2,7 +2,9 @@
 
 mod checkin;
 
+pub use checkin::runner::create_runtime;
 pub use checkin::runner::create_runtime_from_snapshot;
+pub use checkin::runner::create_runtime_with_options;
 pub use checkin::runner::create_runtime_from_snapshot_with_options;
 pub use checkin::runner::snapshot::create_snapshot;
 
